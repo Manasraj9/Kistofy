@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final user = Supabase.instance.client.auth.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSellerProfile();
+  }
+
+  Future<void> _checkSellerProfile() async {
+    final userId = user?.id;
+    if (userId == null) return;
+
+    final profile = await Supabase.instance.client
+        .from('seller_profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (profile == null) {
+      // Redirect to profile setup if not found
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/seller-profile');
+      });
+    }
+  }
 
   void _logout(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
@@ -11,8 +42,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kistofy Dashboard'),
@@ -36,10 +65,29 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
-                  // You can navigate to product list or seller profile setup
+                  // You can navigate to product dashboard next
                 },
                 child: const Text('Go to Product Dashboard'),
               ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/seller-profile');
+                },
+                child: const Text('Update Seller Profile'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/products');
+                },
+                child: const Text('Go to Product Dashboard'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/create-invoice');
+                },
+                child: const Text('Go to create Invoice form'),
+              ),
+
             ],
           ),
         ),

@@ -4,6 +4,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/register_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/seller_profile_screen.dart';
+import 'screens/product_list_screen.dart';
+import 'screens/add_product_screen.dart';
+import 'screens/edit_product_screen.dart';
+import 'screens/create_invoice_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +39,11 @@ class MyApp extends StatelessWidget {
         '/register': (_) => const RegisterScreen(),
         '/login': (_) => const LoginScreen(),
         '/home': (_) => const HomeScreen(),
+        '/seller-profile': (_) => const SellerProfileScreen(),
+        '/products': (_) => const ProductListScreen(),
+        '/add-product': (_) => const AddProductScreen(),
+        '/edit-product':(_) => const EditProductScreen(),
+        '/create-invoice':(_) => const CreateInvoiceScreen()
       },
     );
   }
