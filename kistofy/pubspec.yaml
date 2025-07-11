@@ -33,6 +33,9 @@ dependencies:
   supabase_flutter: ^2.9.1
   flutter_dotenv: ^5.1.0
   uuid: ^4.0.0
+  image_picker: ^1.0.4
+  path: any
+  path_provider: any
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -62,6 +65,8 @@ flutter:
   assets:
     - .env
     - assets/images/google.png
+    - assets/images/banner.png
+    - assets/images/user.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
