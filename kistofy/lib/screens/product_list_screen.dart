@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kistofy/widgets/curved_navbar.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -13,6 +14,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
   String filterOption = 'All';
   List<Map<String, dynamic>> products = [];
   bool isLoading = true;
+
+  int _navIndex = 1;
 
   @override
   void initState() {
@@ -47,6 +50,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<void> deleteProduct(String id) async {
     await Supabase.instance.client.from('products').delete().eq('id', id);
     fetchProducts();
+  }
+
+  void _showProductDetailsModal(Map<String, dynamic> product) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Center(child: Text(product['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+              const SizedBox(height: 12),
+              Text('Description: ${product['description'] ?? '—'}'),
+              Text('Category: ${product['category'] ?? '—'}'),
+              Text('SKU: ${product['sku'] ?? '—'}'),
+              Text('Unit: ${product['unit'] ?? '—'}'),
+              Text('Selling Price: ₹${product['price']}'),
+              Text('Cost Price: ₹${product['cost_price'] ?? '—'}'),
+              Text('GST Rate: ${product['gst_rate']}%'),
+              Text('Discount: ${product['discount_percent'] ?? '0'}%'),
+              Text('Quantity: ${product['quantity']}'),
+              Text('Location: ${product['location'] ?? '—'}'),
+              if (product['expiry_date'] != null)
+                Text('Expiry Date: ${product['expiry_date'].toString().split("T").first}'),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -89,6 +125,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         },
         child: const Icon(Icons.add),
       ),
+      bottomNavigationBar: const AnimatedCurvedNavBar(selectedIndex: 3),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -133,14 +170,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('₹${product['price']}                     Qty: ${product['quantity']}', style: TextStyle( fontWeight: FontWeight.w400),),
+                        Text(
+                          '₹${product['price']}                     Qty: ${product['quantity']}',
+                          style: const TextStyle(fontWeight: FontWeight.w400),
+                        ),
                         if (product['sku'] != null)
-                          Text('SKU: ${product['sku']}',
-                              style: const TextStyle(fontSize: 10)),
+                          Text('SKU: ${product['sku']}', style: const TextStyle(fontSize: 10)),
                       ],
                     ),
+                    onTap: () => _showProductDetailsModal(product),
                     trailing: Wrap(
-
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.blue),
@@ -160,7 +199,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               builder: (ctx) => AlertDialog(
                                 title: const Text('Delete Product'),
                                 content: Text(
-                                    'Are you sure you want to delete "${product['name']}"?'),
+                                  'Are you sure you want to delete "${product['name']}"?',
+                                ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(ctx, false),

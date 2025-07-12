@@ -1,10 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Animated curved bottom‑navigation bar (5 items)
-/// Put inside Scaffold.bottomNavigationBar:  const AnimatedCurvedNavBar()
+/// Animated curved bottom‑navigation bar (5 tabs)
+/// Give [selectedIndex] from 0‑4 so the notch starts under the current tab.
 class AnimatedCurvedNavBar extends StatefulWidget {
-  const AnimatedCurvedNavBar({super.key});
+  final int selectedIndex;                            // 👈 NEW
+  const AnimatedCurvedNavBar({super.key, this.selectedIndex = 0});
 
   @override
   State<AnimatedCurvedNavBar> createState() => _AnimatedCurvedNavBarState();
@@ -12,59 +13,67 @@ class AnimatedCurvedNavBar extends StatefulWidget {
 
 class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
     with SingleTickerProviderStateMixin {
-  int _selected = 0;
+  late int _selected;                                 // <-- init from widget
+  late final AnimationController _ctl;
+  late Animation<double> _notchAnim;
 
-  // ⇢ Change icons / order here (must stay length 5)
+  // 🔧 icons in order (must stay length 5)
   final _icons = <IconData>[
     CupertinoIcons.home,
     CupertinoIcons.bell,
-    CupertinoIcons.plus,         // center
+    CupertinoIcons.plus,      // centre
     CupertinoIcons.settings,
     CupertinoIcons.person,
   ];
 
-  late final AnimationController _ctl;
-  late Animation<double> _notchAnim;
-
+  /*──────── init ───────*/
   @override
   void initState() {
     super.initState();
+    _selected = widget.selectedIndex;                 // 👈 set from param
     _ctl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _notchAnim = Tween<double>(begin: _pos(0), end: _pos(0)).animate(_curve(_ctl));
+
+    // notch begins under current tab
+    _notchAnim = Tween<double>(
+      begin: _pos(_selected),
+      end: _pos(_selected),
+    ).animate(_curve(_ctl));
   }
 
-  /* ───────── helpers ───────── */
-  // Map 0‑4 → 0.1, 0.3, 0.5, 0.7, 0.9  (center of notch)
+  /*──────── helpers ─────*/
+  // converts tab 0‑4 → notch centre 0.1 .. 0.9
   double _pos(int i) => (i + 0.5) / _icons.length;
-
   CurvedAnimation _curve(AnimationController c) =>
       CurvedAnimation(parent: c, curve: Curves.easeOutCubic);
-  /* ─────────────────────────── */
 
+  /*──────── on‑tap ─────*/
   void _tap(int i) {
-    // animate notch
+    if (i == _selected) return;                       // stop re‑routing
+
+    // animate the notch
     _notchAnim =
         Tween<double>(begin: _notchAnim.value, end: _pos(i)).animate(_curve(_ctl));
     _ctl.forward(from: 0);
     setState(() => _selected = i);
 
-    // 👉  route navigation (edit to fit your app)
+    /*—— route changes ———*/
     switch (i) {
-      case 0: Navigator.pushNamed(context, '/home');       break;
-      case 1: Navigator.pushNamed(context, '/notifications'); break;
-      case 2: Navigator.pushNamed(context, '/create-invoice'); break;
-      case 3: Navigator.pushNamed(context, '/products');   break;
-      case 4: Navigator.pushNamed(context, '/seller-profile');  break;
+      case 0: Navigator.pushReplacementNamed(context, '/home');           break;
+      case 1: Navigator.pushReplacementNamed(context, '/notifications');  break;
+      case 2: Navigator.pushReplacementNamed(context, '/create-invoice'); break;
+      case 3: Navigator.pushReplacementNamed(context, '/products');       break;
+      case 4: Navigator.pushReplacementNamed(context, '/seller-profile'); break;
     }
   }
 
+  /*──────── build bar ─────*/
   @override
   Widget build(BuildContext context) {
-    const bg  = Color(0xFF1E1E1E);  // nav bar background
-    const sel = Color(0xFFFF2D55);  // selected icon color
+    const bg  = Color(0xFF1E1E1E);
+    const sel = Color(0xFFFF2D55);
 
     return BottomAppBar(
       color: Colors.transparent,
@@ -83,17 +92,9 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(_icons.length, (i) {
-                  // Customize per-icon shifts here:
-                  final offsets = [
-                    const Offset(-5, -5),   // Home: left 8, down 2
-                    const Offset(-5, -5),    // Bell: default
-                    const Offset(-5, -5),   // Plus: slightly up
-                    const Offset(-5, -5),    // Settings: right 4, down 2
-                    const Offset(-5, -5),    // Profile: right 6
-                  ];
-
+                  const offs = Offset(0, -5); // subtle global lift
                   return Transform.translate(
-                    offset: offsets[i],
+                    offset: offs,
                     child: IconButton(
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
@@ -105,7 +106,6 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
                     ),
                   );
                 }),
-
               ),
             ),
           ],
@@ -121,47 +121,41 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
   }
 }
 
-/*───────────── Painter that draws the moving notch ─────────────*/
+/*──────── painter for bar & moving notch ─────*/
 class _CurvePainter extends CustomPainter {
   const _CurvePainter({required this.notchX, required this.color});
 
-  final double notchX;   // 0–1 position of notch center
+  final double notchX; // 0‑1
   final Color  color;
 
   @override
   void paint(Canvas canvas, Size s) {
-    const notchW = 45.0;
-    const notchH = 34.0;
-    final cx   = s.width * notchX;     // notch center X
+    const notchW = 45.0, notchH = 34.0;
+    final cx = s.width * notchX;
     final half = notchW / 2;
 
     final paint = Paint()..color = color;
-    final path  = Path()..moveTo(0, 0);
+    final p = Path()..moveTo(0, 0);
 
     // left straight
-    path.lineTo(cx - half - 12, 0);
-
-    // left curve up
-    path.quadraticBezierTo(cx - half, 0, cx - half, notchH / 2);
-
+    p.lineTo(cx - half - 12, 0);
+    // curve up
+    p.quadraticBezierTo(cx - half, 0, cx - half, notchH / 2);
     // concave arc
-    path.arcToPoint(
+    p.arcToPoint(
       Offset(cx + half, notchH / 2),
       radius: const Radius.circular(22),
       clockwise: false,
     );
-
-    // right curve down
-    path.quadraticBezierTo(cx + half, 0, cx + half + 12, 0);
-
-    // right edge & close
-    path
+    // curve down
+    p.quadraticBezierTo(cx + half, 0, cx + half + 12, 0);
+    p
       ..lineTo(s.width, 0)
       ..lineTo(s.width, s.height)
       ..lineTo(0, s.height)
       ..close();
 
-    canvas.drawPath(path, paint);
+    canvas.drawPath(p, paint);
   }
 
   @override
