@@ -121,33 +121,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  margin: const EdgeInsets.symmetric(vertical: 5),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: Colors.deepPurple[50],
-                      child: Text(
-                        product['name']?[0].toUpperCase() ?? '?',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                    contentPadding: const EdgeInsets.all(10),
                     title: Text(
                       product['name'] ?? 'Unnamed Product',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('₹${product['price']} • Qty: ${product['quantity']}'),
+                        Text('₹${product['price']}                     Qty: ${product['quantity']}', style: TextStyle( fontWeight: FontWeight.w400),),
                         if (product['sku'] != null)
                           Text('SKU: ${product['sku']}',
-                              style: const TextStyle(fontSize: 12)),
+                              style: const TextStyle(fontSize: 10)),
                       ],
                     ),
                     trailing: Wrap(
-                      spacing: 10,
+
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.blue),
