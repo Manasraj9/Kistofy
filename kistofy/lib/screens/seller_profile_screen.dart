@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kistofy/widgets/curved_navbar.dart';
 
 class SellerProfileScreen extends StatefulWidget {
   const SellerProfileScreen({super.key});
@@ -30,7 +31,6 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
     _loadProfile();
   }
 
-  /* ───────────────── fetch profile ───────────────── */
   Future<void> _loadProfile() async {
     final data = await supabase
         .from('seller_profiles')
@@ -48,23 +48,20 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
     setState(() => _loading = false);
   }
 
-  /* ───────────────── pick image ───────────────── */
   Future<void> _pickImage() async {
-    if (!_editing) return; // only in edit mode
+    if (!_editing) return;
     final file = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (file != null) setState(() => _pickedImg = File(file.path));
   }
 
-  /* ───────────────── upload image ───────────────── */
   Future<String?> _uploadAvatar() async {
     if (_pickedImg == null) return _avatarUrl;
-    final name   = '$_uid-${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final name = '$_uid-${DateTime.now().millisecondsSinceEpoch}.jpg';
     final bucket = supabase.storage.from('seller-avatars');
     await bucket.upload(name, _pickedImg!, fileOptions: const FileOptions(upsert: true));
     return bucket.getPublicUrl(name);
   }
 
-  /* ───────────────── save changes ───────────────── */
   Future<void> _save() async {
     final gstOk = _gst.text.isEmpty ||
         RegExp(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$')
@@ -81,21 +78,23 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
     final url = await _uploadAvatar();
     await supabase.from('seller_profiles').upsert({
       'id': _uid,
-      'shop_name':  _shop.text.trim(),
+      'shop_name': _shop.text.trim(),
       'gst_number': _gst.text.trim(),
-      'phone':      _phone.text.trim(),
-      'address':    _addr.text.trim(),
+      'phone': _phone.text.trim(),
+      'address': _addr.text.trim(),
       'avatar_url': url,
     });
 
     _snack('Profile saved');
-    setState(() { _editing = false; _avatarUrl = url; });
+    setState(() {
+      _editing = false;
+      _avatarUrl = url;
+    });
   }
 
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
-  /* ───────────────── UI ───────────────── */
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -114,35 +113,30 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-
-            /* ── avatar ── */
-            GestureDetector(
-              onTap: _pickImage,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundImage: _pickedImg != null
-                    ? FileImage(_pickedImg!)
-                    : (_avatarUrl != null ? NetworkImage(_avatarUrl!) : null)
-                as ImageProvider?,
-                child: !_editing && _avatarUrl == null
-                    ? const Icon(Icons.person, size: 48)
-                    : _editing && _pickedImg == null && _avatarUrl == null
-                    ? const Icon(Icons.add_a_photo, size: 40)
-                    : null,
-              ),
+        child: Column(children: [
+          GestureDetector(
+            onTap: _pickImage,
+            child: CircleAvatar(
+              radius: 50,
+              backgroundImage: _pickedImg != null
+                  ? FileImage(_pickedImg!)
+                  : (_avatarUrl != null ? NetworkImage(_avatarUrl!) : null)
+              as ImageProvider?,
+              child: !_editing && _avatarUrl == null
+                  ? const Icon(Icons.person, size: 48)
+                  : _editing && _pickedImg == null && _avatarUrl == null
+                  ? const Icon(Icons.add_a_photo, size: 40)
+                  : null,
             ),
-            const SizedBox(height: 24),
-
-            /* ── fields (read‑only vs editable) ── */
-            _field('Shop Name', _shop),
-            _field('GST Number', _gst),
-            _field('Phone', _phone, input: TextInputType.phone),
-            _field('Address', _addr, maxLines: 2),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          _field('Shop Name', _shop),
+          _field('GST Number', _gst),
+          _field('Phone', _phone, input: TextInputType.phone),
+          _field('Address', _addr, maxLines: 2),
+        ]),
       ),
+      bottomNavigationBar: const AnimatedCurvedNavBar(selectedIndex: 4),// 👈 highlight Profile tab
     );
   }
 
@@ -169,7 +163,6 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
               style: const TextStyle(fontSize: 16),
             ),
           ),
-
         ],
       ),
     );

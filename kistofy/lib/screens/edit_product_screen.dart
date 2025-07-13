@@ -13,7 +13,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late Map<String, dynamic> product;
 
   final _formKey = GlobalKey<FormState>();
-
   final nameC = TextEditingController();
   final descC = TextEditingController();
   final skuC = TextEditingController();
@@ -24,7 +23,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
   final quantityC = TextEditingController();
   final locationC = TextEditingController();
 
-  final _categories = ['General', 'Electronics', 'Grocery', 'Clothing','Stationery'];
+  final _categories = ['General', 'Electronics', 'Grocery', 'Clothing', 'Stationery'];
   final _gstRates = [0, 5, 12, 18, 28];
 
   String? category;
@@ -34,13 +33,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
   double finalPrice = 0;
   double gstAmount = 0;
+  double profit = 0;
+  bool showLossWarning = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     product = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
 
-    // Populate fields
     nameC.text = product['name'] ?? '';
     descC.text = product['description'] ?? '';
     skuC.text = product['sku'] ?? '';
@@ -60,48 +60,62 @@ class _EditProductScreenState extends State<EditProductScreen> {
   }
 
   void _recalcPrice() {
-    double base = double.tryParse(basePriceC.text) ?? 0;
-    double gst = gstRate.toDouble();
-    double priceWithGst = base + (base * gst / 100);
-    double rounded = (priceWithGst / 10).round() * 10;
+    /*──────── parse inputs ───────*/
+    final double priceInput = double.tryParse(basePriceC.text) ?? 0;
+    final double cost       = double.tryParse(costPriceC.text)  ?? 0;
+    final double discPct    = double.tryParse(discountC.text)   ?? 0;
+    final double rate       = gstRate.toDouble();
 
+    /*──────── GST & base price ───*/
+    double base, gst;
+    if (gstIncluded) {
+      base = priceInput / (1 + rate / 100);   // reverse GST
+      gst  = priceInput - base;
+    } else {
+      base = priceInput;                      // price excludes GST
+      gst  = base * rate / 100;               // exact GST – NO rounding
+    }
+
+    /*──────── discount & profit ──*/
+    final double discountAmt = base * discPct / 100;
+    final double netSell     = base - discountAmt;      // price investor keeps
+    final double profitCalc  = netSell - cost;          // true profit
+
+    /*──────── update state ───────*/
     setState(() {
-      finalPrice = rounded;
-      gstAmount = rounded - base;
+      gstAmount       = gst;                        // exact GST value
+      finalPrice      = gstIncluded ? priceInput    // inclusive mode
+          : base + gst;   // exclusive mode (exact sum)
+      profit          = profitCalc;
+      showLossWarning = (cost + gst) > (base);      // warn if loss risk
     });
   }
+
 
   Future<void> _updateProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    final name = nameC.text.trim();
-    final desc = descC.text.trim();
-    final price = finalPrice;
-    final cost = double.tryParse(costPriceC.text) ?? 0;
-    final disc = double.tryParse(discountC.text) ?? 0;
-    final qty = int.tryParse(quantityC.text) ?? 0;
-    final sku = skuC.text.trim();
-    final unit = unitC.text.trim();
-    final loc = locationC.text.trim();
+    if (userId == null) return;
 
-    await Supabase.instance.client.from('products').update({
+    final data = {
       'user_id': userId,
-      'name': name,
-      'description': desc,
-      'price': price,
-      'cost_price': cost,
-      'discount_percent': disc,
+      'name': nameC.text.trim(),
+      'description': descC.text.trim(),
+      'price': finalPrice,
+      'cost_price': double.tryParse(costPriceC.text),
+      'discount_percent': double.tryParse(discountC.text),
       'gst_rate': gstRate,
-      'gst_included': true,
-      'quantity': qty,
-      'sku': sku,
-      'unit': unit,
+      'gst_included': gstIncluded,
+      'quantity': int.tryParse(quantityC.text),
+      'sku': skuC.text.trim(),
+      'unit': unitC.text.trim(),
       'category': category,
-      'location': loc,
+      'location': locationC.text.trim(),
       'expiry_date': expiryDate?.toIso8601String(),
-    }).eq('id', product['id']);
+    };
 
+    await Supabase.instance.client.from('products').update(data).eq('id', product['id']);
     if (mounted) Navigator.pop(context);
   }
 
@@ -128,48 +142,72 @@ class _EditProductScreenState extends State<EditProductScreen> {
         child: Form(
           key: _formKey,
           child: Column(children: [
-            TextFormField(controller: nameC, decoration: const InputDecoration(labelText: 'Product Name')),
-            TextFormField(controller: descC, decoration: const InputDecoration(labelText: 'Description')),
-            DropdownButtonFormField(
+            _input(nameC, 'Product Name', required: true),
+            _input(descC, 'Description'),
+            DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Category'),
               value: category,
               items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
               onChanged: (val) => setState(() => category = val),
             ),
-            TextFormField(controller: skuC, decoration: const InputDecoration(labelText: 'SKU')),
-            TextFormField(controller: unitC, decoration: const InputDecoration(labelText: 'Unit')),
-            TextFormField(
-              controller: basePriceC,
-              decoration: const InputDecoration(labelText: 'Selling Price (before GST)'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => _recalcPrice(),
+            _input(skuC, 'SKU'),
+            _input(unitC, 'Unit'),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _input(basePriceC, gstIncluded
+                      ? 'Final Price (inclusive GST)' : 'Selling Price (excl. GST)',
+                      keyboard: TextInputType.number,
+                      onChanged: (_) => _recalcPrice(),
+                      required: true),
+                ),
+                const SizedBox(width: 8),
+                Switch(
+                  value: gstIncluded,
+                  onChanged: (val) {
+                    setState(() => gstIncluded = val);
+                    _recalcPrice();
+                  },
+                ),
+                const Text('GST Included'),
+              ],
             ),
-            TextFormField(
-              controller: costPriceC,
-              decoration: const InputDecoration(labelText: 'Cost Price'),
-              keyboardType: TextInputType.number,
-            ),
-            TextFormField(
-              controller: discountC,
-              decoration: const InputDecoration(labelText: 'Discount %'),
-              keyboardType: TextInputType.number,
-            ),
-            DropdownButtonFormField(
-              decoration: const InputDecoration(labelText: 'GST Rate'),
+
+            _input(costPriceC, 'Cost Price (₹)', keyboard: TextInputType.number, onChanged: (_) => _recalcPrice()),
+            _input(discountC, 'Discount (%)', keyboard: TextInputType.number, onChanged: (_) => _recalcPrice()),
+
+            DropdownButtonFormField<int>(
               value: gstRate,
               items: _gstRates.map((rate) => DropdownMenuItem(value: rate, child: Text("$rate%"))).toList(),
               onChanged: (val) {
                 gstRate = val!;
                 _recalcPrice();
               },
+              decoration: const InputDecoration(labelText: 'GST Rate'),
             ),
-            TextFormField(
-              controller: quantityC,
-              decoration: const InputDecoration(labelText: 'Quantity'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => _recalcPrice(),
+
+            const SizedBox(height: 10),
+            if (showLossWarning)
+              const Text(
+                '⚠️ Warning: You may face loss (Cost + GST > Price)',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+              ),
+
+            const SizedBox(height: 10),
+            Text('GST Amount: ₹${gstAmount.toStringAsFixed(2)}'),
+            Text('Final Price (incl. GST): ₹${finalPrice.toStringAsFixed(2)}'),
+            Text(
+              'Estimated Profit: ₹${profit.toStringAsFixed(2)}',
+              style: TextStyle(
+                color: profit < 0 ? Colors.red : Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            TextFormField(controller: locationC, decoration: const InputDecoration(labelText: 'Location')),
+
+            _input(quantityC, 'Quantity', keyboard: TextInputType.number),
+            _input(locationC, 'Location'),
+
             ListTile(
               title: Text(expiryDate == null
                   ? 'Select Expiry Date'
@@ -182,20 +220,35 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2100),
                 );
-                if (picked != null) {
-                  setState(() => expiryDate = picked);
-                }
+                if (picked != null) setState(() => expiryDate = picked);
               },
             ),
+
             const SizedBox(height: 20),
-            Text("Final Price (incl. GST): ₹${finalPrice.toStringAsFixed(2)}"),
-            const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _updateProduct,
               child: const Text('Update Product'),
             )
           ]),
         ),
+      ),
+    );
+  }
+
+  Widget _input(TextEditingController c, String label,
+      {TextInputType keyboard = TextInputType.text,
+        bool required = false,
+        void Function(String)? onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: c,
+        keyboardType: keyboard,
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        validator: required
+            ? (v) => (v == null || v.trim().isEmpty) ? 'Required' : null
+            : null,
+        onChanged: onChanged,
       ),
     );
   }

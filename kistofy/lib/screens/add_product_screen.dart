@@ -12,44 +12,60 @@ class AddProductScreen extends StatefulWidget {
 class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  /*──────── text controllers ────────*/
-  final nameC      = TextEditingController();
-  final descC      = TextEditingController();
-  final skuC       = TextEditingController();
-  final unitC      = TextEditingController();
-  final basePriceC = TextEditingController();
+  final nameC = TextEditingController();
+  final descC = TextEditingController();
+  final skuC = TextEditingController();
+  final unitC = TextEditingController();
+  final priceC = TextEditingController(); // Input for final price
   final costPriceC = TextEditingController();
-  final discountC  = TextEditingController();
-  final quantityC  = TextEditingController();
-  final locationC  = TextEditingController();
+  final discountC = TextEditingController();
+  final quantityC = TextEditingController();
+  final locationC = TextEditingController();
 
-  /*──────── dropdown data ───────────*/
   final _categories = ['General', 'Electronics', 'Grocery', 'Clothing'];
-  final _gstRates   = [0, 5, 12, 18, 28];
+  final _gstRates = [0, 5, 12, 18, 28];
 
-  String?  category;
-  int      gstRate = 18;
-  bool     gstIncluded = true; // always true in this inclusive model
+  String? category;
+  int gstRate = 18;
+  bool gstIncluded = true;
   DateTime? expiryDate;
 
-  double finalPrice = 0;   // GST‑inclusive rounded price
-  double gstAmount  = 0;   // extracted GST component
+  double basePrice = 0;
+  double gstAmount = 0;
+  double discountAmount = 0;
+  double finalPrice = 0;
+  double profit = 0;
+  bool showLossWarning = false;
 
-  /*──────── calculation helpers ────*/
-  void _recalcPrice() {
-    double base = double.tryParse(basePriceC.text) ?? 0;
-    double gst  = gstRate.toDouble();
+  void _recalcPrices() {
+    double priceInput = double.tryParse(priceC.text) ?? 0;
+    double cost = double.tryParse(costPriceC.text) ?? 0;
+    double discount = double.tryParse(discountC.text) ?? 0;
 
-    double priceWithGst = base + (base * gst / 100);
-    double rounded      = (priceWithGst / 10).round() * 10;
+    double base, gst;
+
+    if (gstIncluded) {
+      base = priceInput / (1 + gstRate / 100);
+      gst = priceInput - base;
+    } else {
+      base = priceInput;
+      gst = base * gstRate / 100;
+      priceInput += gst;
+    }
+
+    double discountValue = base * (discount / 100);
+    double profitCalc = (base - discountValue) - cost;
 
     setState(() {
-      finalPrice = rounded;
-      gstAmount  = rounded - base;
+      finalPrice = priceInput;
+      basePrice = base;
+      gstAmount = gst;
+      discountAmount = discountValue;
+      profit = profitCalc;
+      showLossWarning = cost + gst > base;
     });
   }
 
-  /*──────── submit to Supabase ─────*/
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -60,29 +76,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final reorder = (qty * 0.1).floor();
 
     final data = {
-      'user_id'        : userId,
-      'name'           : nameC.text.trim(),
-      'description'    : descC.text.trim(),
-      'category'       : category ?? 'General',
-      'sku'            : skuC.text.trim(),
-      'unit'           : unitC.text.trim(),
+      'user_id': userId,
+      'name': nameC.text.trim(),
+      'description': descC.text.trim(),
+      'category': category ?? 'General',
+      'sku': skuC.text.trim(),
+      'unit': unitC.text.trim(),
 
-      // Pricing  ► store GST‑inclusive rounded price in `price`
-      'price'          : finalPrice,                  // ✅  matches table
-      'cost_price'     : double.tryParse(costPriceC.text) ?? 0,
+      'price': finalPrice,
+      'cost_price': double.tryParse(costPriceC.text) ?? 0,
       'discount_percent': double.tryParse(discountC.text) ?? 0,
-      'gst_rate'       : gstRate,
-      'gst_included'   : true,                        // column exists
+      'gst_rate': gstRate,
+      'gst_included': gstIncluded,
 
-      // Inventory
-      'quantity'       : qty,
-      'location'       : locationC.text.trim(),
+      'quantity': qty,
+      'location': locationC.text.trim(),
 
-      // Misc
-      'expiry_date'    : expiryDate?.toIso8601String(),
-      'created_at'     : DateTime.now().toIso8601String(),
+      'expiry_date': expiryDate?.toIso8601String(),
+      'created_at': DateTime.now().toIso8601String(),
+      'gst_amount': gstAmount,
     };
-
 
     try {
       await Supabase.instance.client.from('products').insert(data);
@@ -107,7 +120,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (d != null) setState(() => expiryDate = d);
   }
 
-  /*──────── build UI ───────────────*/
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,14 +148,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
             _input(skuC, 'SKU'),
             _input(unitC, 'Unit'),
 
-            _section('Pricing (GST will be added & rounded to ₹10)'),
-            _input(basePriceC, 'Selling Price (before GST)',
-                keyboard: TextInputType.number, onChanged: (_) => _recalcPrice()),
+            _section('Pricing'),
+            SwitchListTile(
+              title: const Text('Is Final Price GST Inclusive?'),
+              value: gstIncluded,
+              onChanged: (v) {
+                setState(() => gstIncluded = v);
+                _recalcPrices();
+              },
+            ),
+            _input(priceC, 'Final Price (₹)', keyboard: TextInputType.number,
+                required: true, onChanged: (_) => _recalcPrices()),
             _input(costPriceC, 'Cost Price',
-                keyboard: TextInputType.number),
+                keyboard: TextInputType.number, onChanged: (_) => _recalcPrices()),
             _input(discountC, 'Discount (%)',
-                keyboard: TextInputType.number),
-
+                keyboard: TextInputType.number, onChanged: (_) => _recalcPrices()),
             DropdownButtonFormField<int>(
               value: gstRate,
               items: _gstRates
@@ -155,20 +174,38 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               onChanged: (v) {
                 gstRate = v ?? 0;
-                _recalcPrice();
+                _recalcPrices();
               },
             ),
-            const SizedBox(height: 8),
-            /* Display calculated, rounded price */
+
+            const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerLeft,
-              child: Chip(
-                label: Text(
-                  'Final Price (incl. GST): ₹${finalPrice.toStringAsFixed(2)}',
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Base Price: ₹${basePrice.toStringAsFixed(2)}'),
+                  Text('GST Amount: ₹${gstAmount.toStringAsFixed(2)}'),
+                  Text('Discount: ₹${discountAmount.toStringAsFixed(2)}'),
+                  Text('Final Price: ₹${finalPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Profit: ₹${profit.toStringAsFixed(2)}',
+                      style: TextStyle(
+                          color: profit >= 0 ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold)),
+                  if (showLossWarning)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        '⚠ You may face loss on this product.',
+                        style: TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ),
+                ],
               ),
             ),
 
+            const SizedBox(height: 24),
             _section('Inventory'),
             _input(quantityC, 'Quantity', keyboard: TextInputType.number),
             _input(locationC, 'Location'),
@@ -185,7 +222,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               onTap: _pickExpiry,
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _submit,
               child: const Text('Add Product'),
@@ -196,7 +233,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  /*──────── helpers ───────────────*/
   Widget _section(String t) => Align(
     alignment: Alignment.centerLeft,
     child: Padding(

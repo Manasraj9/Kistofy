@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kistofy/widgets/curved_navbar.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   const CreateInvoiceScreen({super.key});
@@ -11,240 +12,354 @@ class CreateInvoiceScreen extends StatefulWidget {
 
 class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final supabase = Supabase.instance.client;
-  final _newCustomerNameController = TextEditingController();
-  final _newCustomerMobileController = TextEditingController();
 
-  List<Map<String, dynamic>> _products = [];
-  List<Map<String, dynamic>> _selectedItems = [];
-  List<Map<String, dynamic>> _customers = [];
+  final _newCustNameC = TextEditingController();
+  final _newCustMobileC = TextEditingController();
 
+  List<Map<String, dynamic>> _selected = [];
   Map<String, dynamic>? selectedCustomer;
 
-  String customerSearch = '';
-  String productSearch = '';
+  bool _custLoading = false, _prodLoading = false, _saving = false;
+  List<Map<String, dynamic>> _custResults = [], _prodResults = [];
+  String custSearch = '', prodSearch = '';
 
   @override
-  void initState() {
-    super.initState();
-    _loadData();
+  void dispose() {
+    _newCustNameC.dispose();
+    _newCustMobileC.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadData() async {
-    final userId = supabase.auth.currentUser?.id;
-    final productsRes = await supabase
-        .from('products')
-        .select()
-        .eq('user_id', userId as Object);
-
-    final customersRes = await supabase
+  Future<void> _searchCustomers(String term) async {
+    setState(() {
+      custSearch = term;
+      _custLoading = true;
+    });
+    final uid = supabase.auth.currentUser!.id;
+    final data = await supabase
         .from('customers')
         .select()
-        .eq('user_id', userId as Object);
-
+        .eq('seller_id', uid)
+        .or('name.ilike.%$term%,mobile.ilike.%$term%')
+        .limit(10);
     setState(() {
-      _products = List<Map<String, dynamic>>.from(productsRes);
-      _customers = List<Map<String, dynamic>>.from(customersRes);
+      _custResults = List<Map<String, dynamic>>.from(data);
+      _custLoading = false;
     });
   }
 
-  void _addProduct(Map<String, dynamic> product) {
-    final existing = _selectedItems.indexWhere((item) => item['id'] == product['id']);
-    if (existing >= 0) {
-      _selectedItems[existing]['quantity']++;
+  Future<void> _searchProducts(String term) async {
+    setState(() {
+      prodSearch = term;
+      _prodLoading = true;
+    });
+    final uid = supabase.auth.currentUser!.id;
+    final data = await supabase
+        .from('products')
+        .select()
+        .eq('user_id', uid)
+        .ilike('name', '%$term%')
+        .limit(10);
+    setState(() {
+      _prodResults = List<Map<String, dynamic>>.from(data);
+      _prodLoading = false;
+    });
+  }
+
+  void _addProduct(Map<String, dynamic> p) {
+    final idx = _selected.indexWhere((i) => i['id'] == p['id']);
+    if (idx >= 0) {
+      if (_selected[idx]['qty'] < _selected[idx]['stock']) {
+        _selected[idx]['qty']++;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Cannot exceed stock (${p['quantity']})')));
+      }
     } else {
-      _selectedItems.add({
-        ...product,
-        'quantity': 1,
+      _selected.add({
+        'id': p['id'],
+        'name': p['name'],
+        'price': p['price'],
+        'gst_rate': p['gst_rate'],
+        'qty': 1,
         'discount': 0.0,
-        'gst': 0.0,
+        'stock': p['quantity'],
       });
     }
     setState(() {});
   }
 
-  double get subtotal => _selectedItems.fold(0.0, (sum, item) {
-    final price = item['price'] * item['quantity'];
-    final discount = price * (item['discount'] / 100);
-    return sum + (price - discount);
+  double get subtotal => _selected.fold(0.0, (s, i) {
+    final base = i['price'] * i['qty'];
+    return s + (base - base * (i['discount'] / 100));
   });
 
-  double get gstTotal => _selectedItems.fold(0.0, (sum, item) {
-    final price = item['price'] * item['quantity'];
-    final discount = price * (item['discount'] / 100);
-    final afterDiscount = price - discount;
-    return sum + (afterDiscount * (item['gst'] / 100));
-  });
-
-  Future<void> _addNewCustomer() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
-
-    final name = _newCustomerNameController.text.trim();
-    final mobile = _newCustomerMobileController.text.trim();
-
+  Future<void> _addCustomer() async {
+    final name = _newCustNameC.text.trim();
+    final mobile = _newCustMobileC.text.trim();
     if (name.isEmpty || mobile.isEmpty) return;
-
-    final newCustomer = await supabase.from('customers').insert({
-      'user_id': user.id,
+    final newCust = await supabase.from('customers').insert({
+      'seller_id': supabase.auth.currentUser!.id,
       'name': name,
-      'mobile': mobile,
+      'mobile': mobile
     }).select().single();
-
-    setState(() {
-      _customers.add(newCustomer);
-      selectedCustomer = newCustomer;
-      _newCustomerNameController.clear();
-      _newCustomerMobileController.clear();
-    });
-
+    setState(() => selectedCustomer = newCust as Map<String, dynamic>);
+    _newCustNameC.clear();
+    _newCustMobileC.clear();
     Navigator.pop(context);
+  }
+
+  void _previewInvoice() {
+    if (selectedCustomer == null || _selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Select customer and add products')));
+      return;
+    }
+    showDialog(
+        context: context,
+        builder: (_) {
+          return AlertDialog(
+            title: Text('Invoice Preview'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Customer: ${selectedCustomer!['name']}'),
+                  Divider(),
+                  ..._selected.map((i) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${i['name']} × ${i['qty']}'),
+                    subtitle: Text(
+                        '₹${(i['price'] * i['qty']).toStringAsFixed(2)} (incl. GST)'),
+                    trailing: Text('Disc ${i['discount']}%'),
+                  )),
+                  Divider(),
+                  Text('Total: ₹${subtotal.toStringAsFixed(2)}'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel')),
+              ElevatedButton(
+                  onPressed: _saving ? null : () {
+                    Navigator.pop(context);
+                    _generateInvoice();
+                  },
+                  child: _saving
+                      ? SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : Text('Confirm & Save')),
+            ],
+          );
+        });
   }
 
   Future<void> _generateInvoice() async {
-    final user = supabase.auth.currentUser;
-    if (user == null || selectedCustomer == null) return;
+    setState(() => _saving = true);
+    try {
+      final uid = supabase.auth.currentUser!.id;
 
-    final finalAmount = subtotal + gstTotal;
 
-    final invoice = await supabase.from('invoices').insert({
-      'user_id': user.id,
-      'customer_id': selectedCustomer!['id'],
-      'customer_name': selectedCustomer!['name'],
-      'invoice_number': 'INV-${DateTime.now().millisecondsSinceEpoch}',
-      'total_amount': subtotal,
-      'discount': 0,
-      'gst_percent': 0,
-      'gst_amount': gstTotal,
-      'final_amount': finalAmount,
-      'public_view_id': const Uuid().v4(),
-    }).select().single();
+      final invoice = await supabase.from('invoices').insert({
+        'user_id': uid,
+        'customer_id': selectedCustomer!['id'],
+        'customer_name': selectedCustomer!['name'],
+        'invoice_number': 'INV-${DateTime.now().millisecondsSinceEpoch}',
+        'total_amount': subtotal,
+        'public_view_id': Uuid().v4(),
+      }).select().single();
 
-    for (var item in _selectedItems) {
-      final price = item['price'] * item['quantity'];
-      final discount = price * (item['discount'] / 100);
-      final afterDiscount = price - discount;
-      final gst = afterDiscount * (item['gst'] / 100);
+      for (final i in _selected) {
+        final base = i['price'] * i['qty'];
+        final discAmount = base * (i['discount'] / 100);
+        final afterDiscount = base - discAmount;
 
-      await supabase.from('invoice_items').insert({
-        'invoice_id': invoice['id'],
-        'product_id': item['id'],
-        'product_name': item['name'],
-        'price': item['price'],
-        'quantity': item['quantity'],
-        'subtotal': afterDiscount + gst,
-        'discount': item['discount'],
-        'gst_percent': item['gst'],
+        await supabase.from('invoice_items').insert({
+          'invoice_id': invoice['id'],
+          'product_id': i['id'],
+          'product_name': i['name'],
+          'price': i['price'],
+          'quantity': i['qty'],
+          'subtotal': afterDiscount,
+        });
+
+        final newStock = (i['stock'] as int) - i['qty'];
+        await supabase.from('products').update({'quantity': newStock}).eq('id', i['id']);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invoice generated successfully!')));
+
+      // Clear selections after saving
+      setState(() {
+        _selected.clear();
+        selectedCustomer = null;
       });
+
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() => _saving = false);
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invoice created!')));
-    Navigator.pop(context);
   }
 
-  void _showAddCustomerDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add New Customer'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: _newCustomerNameController, decoration: const InputDecoration(labelText: 'Name')),
-            TextField(controller: _newCustomerMobileController, decoration: const InputDecoration(labelText: 'Mobile')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(onPressed: _addNewCustomer, child: const Text('Add')),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final filteredCustomers = _customers.where((c) {
-      final name = c['name'].toLowerCase();
-      return name.contains(customerSearch.toLowerCase());
-    }).toList();
-
-    final filteredProducts = _products.where((p) {
-      final name = p['name'].toLowerCase();
-      return name.contains(productSearch.toLowerCase());
-    }).toList();
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Invoice')),
+      appBar: AppBar(title: Text('Create Invoice')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Select Customer', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('Select Customer', style: TextStyle(fontWeight: FontWeight.bold)),
           TextField(
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search customers...'),
-            onChanged: (val) => setState(() => customerSearch = val),
+            decoration: InputDecoration(
+                prefixIcon: Icon(Icons.search), hintText: 'Search customers…'),
+            onChanged: _searchCustomers,
           ),
-          DropdownButtonFormField<String>(
-            items: filteredCustomers.map((customer) {
-              return DropdownMenuItem<String>(
-                value: customer['id'],
-                child: Text('${customer['name']} - ${customer['mobile']}'),
-              );
-            }).toList(),
-            onChanged: (value) {
-              final customer = _customers.firstWhere((c) => c['id'] == value);
-              setState(() => selectedCustomer = customer);
-            },
-            value: selectedCustomer?['id'],
-            hint: const Text('Choose customer'),
-          ),
-
-          TextButton.icon(
-            onPressed: _showAddCustomerDialog,
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add New Customer'),
-          ),
-          const SizedBox(height: 20),
-          const Text('Select Products', style: TextStyle(fontWeight: FontWeight.bold)),
-          TextField(
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search products...'),
-            onChanged: (val) => setState(() => productSearch = val),
-          ),
-          Wrap(
-            spacing: 8,
-            children: filteredProducts.map((p) => ActionChip(
-              label: Text(p['name']),
-              onPressed: () => _addProduct(p),
-            )).toList(),
-          ),
-          const SizedBox(height: 20),
-          const Text('Selected Items:'),
-          ..._selectedItems.map((item) => ListTile(
-            title: Text('${item['name']} × ${item['quantity']}'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Discount %'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => setState(() => item['discount'] = double.tryParse(val) ?? 0),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'GST %'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) => setState(() => item['gst'] = double.tryParse(val) ?? 0),
-                ),
-              ],
+          if (_custLoading)
+            Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Searching...')),
+          if (!_custLoading && _custResults.isNotEmpty)
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                itemCount: _custResults.length,
+                itemBuilder: (_, i) {
+                  final c = _custResults[i];
+                  return ListTile(
+                    title: Text('${c['name']} - ${c['mobile']}'),
+                    onTap: () {
+                      setState(() {
+                        selectedCustomer = c;
+                        _custResults.clear();
+                        custSearch = c['name'];
+                      });
+                      FocusScope.of(context).unfocus();
+                    },
+                  );
+                },
+              ),
             ),
-            trailing: Text('₹${(item['price'] * item['quantity']).toStringAsFixed(2)}'),
-          )),
-          const Divider(),
-          Text('Subtotal: ₹${subtotal.toStringAsFixed(2)}'),
-          Text('GST Total: ₹${gstTotal.toStringAsFixed(2)}'),
-          Text('Total Amount: ₹${(subtotal + gstTotal).toStringAsFixed(2)}'),
-          const SizedBox(height: 20),
-          ElevatedButton(onPressed: _generateInvoice, child: const Text('Generate Invoice')),
+          if (selectedCustomer != null)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                  'Selected: ${selectedCustomer!['name']} (${selectedCustomer!['mobile']})',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          TextButton.icon(
+              onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: Text('Add New Customer'),
+                    content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                              controller: _newCustNameC,
+                              decoration: InputDecoration(labelText: 'Name')),
+                          TextField(
+                              controller: _newCustMobileC,
+                              decoration:
+                              InputDecoration(labelText: 'Mobile')),
+                        ]),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Cancel')),
+                      ElevatedButton(
+                          onPressed: _addCustomer, child: Text('Add')),
+                    ],
+                  )),
+              icon: Icon(Icons.person_add),
+              label: Text('Add New Customer')),
+
+          SizedBox(height: 20),
+          Text('Select Products',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          TextField(
+            decoration: InputDecoration(
+                prefixIcon: Icon(Icons.search), hintText: 'Search products…'),
+            onChanged: _searchProducts,
+          ),
+          if (_prodLoading)
+            Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Searching...')),
+          if (!_prodLoading && _prodResults.isNotEmpty)
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                itemCount: _prodResults.length,
+                itemBuilder: (_, i) {
+                  final p = _prodResults[i];
+                  return ListTile(
+                    title: Text(p['name']),
+                    trailing: Icon(Icons.add),
+                    onTap: () {
+                      _addProduct(p);
+                      setState(() {
+                        _prodResults.clear();
+                        prodSearch = p['name'];
+                      });
+                      FocusScope.of(context).unfocus();
+                    },
+                  );
+                },
+              ),
+            ),
+
+          SizedBox(height: 20),
+          Text('Selected Items:',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          ..._selected.map((i) {
+            return ListTile(
+              leading: IconButton(
+                  icon: Icon(Icons.remove_circle_outline),
+                  onPressed: () {
+                    if (i['qty'] > 1) setState(() => i['qty']--);
+                  }),
+              title: Text(i['name']),
+              subtitle:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('₹${(i['price'] * i['qty']).toStringAsFixed(2)} (incl. GST)'),
+                Row(children: [
+                  Text('Qty: ${i['qty']}'),
+                  IconButton(
+                      icon: Icon(Icons.add_circle_outline),
+                      onPressed: () => _addProduct(i)),
+                  SizedBox(width: 10),
+                  SizedBox(
+                    width: 80,
+                  ),
+                ]),
+              ]),
+            );
+          }).toList(),
+
+          Divider(),
+          Text('Total: ₹${subtotal.toStringAsFixed(2)}'),
+
+          SizedBox(height: 20),
+          ElevatedButton(
+              onPressed: _saving ? null :  _generateInvoice, child: Text('Generate Invoice')),
         ]),
       ),
+      bottomNavigationBar: AnimatedCurvedNavBar(selectedIndex: 2),
     );
   }
 }
+
