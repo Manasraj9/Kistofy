@@ -30,6 +30,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     super.dispose();
   }
 
+  String selectedPaymentMethod = 'Cash';
+
+  final List<String> paymentMethods = [
+    'Cash',
+    'Card',
+    'UPI',
+    'Bank Transfer',
+    'Pending'
+  ];
+
+
   Future<void> _searchCustomers(String term) async {
     setState(() {
       custSearch = term;
@@ -172,6 +183,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         'customer_name': selectedCustomer!['name'],
         'invoice_number': 'INV-${DateTime.now().millisecondsSinceEpoch}',
         'total_amount': subtotal,
+        'payment_method': selectedPaymentMethod, // ADD THIS LINE
         'public_view_id': Uuid().v4(),
       }).select().single();
 
@@ -352,6 +364,27 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
           Divider(),
           Text('Total: ₹${subtotal.toStringAsFixed(2)}'),
+
+          SizedBox(height: 20),
+          DropdownButtonFormField<String>(
+            value: selectedPaymentMethod,
+            decoration: InputDecoration(
+              labelText: 'Payment Method',
+              border: OutlineInputBorder(),
+            ),
+            items: paymentMethods.map((method) {
+              return DropdownMenuItem(
+                value: method,
+                child: Text(method),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedPaymentMethod = value!;
+              });
+            },
+          ),
+
 
           SizedBox(height: 20),
           ElevatedButton(
