@@ -1,10 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Animated curved bottom‑navigation bar (5 tabs)
-/// Give [selectedIndex] from 0‑4 so the notch starts under the current tab.
 class AnimatedCurvedNavBar extends StatefulWidget {
-  final int selectedIndex;                            // 👈 NEW
+  final int selectedIndex;
   const AnimatedCurvedNavBar({super.key, this.selectedIndex = 0});
 
   @override
@@ -13,53 +11,38 @@ class AnimatedCurvedNavBar extends StatefulWidget {
 
 class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
     with SingleTickerProviderStateMixin {
-  late int _selected;                                 // <-- init from widget
+  late int _selected;
   late final AnimationController _ctl;
   late Animation<double> _notchAnim;
 
-  // 🔧 icons in order (must stay length 5)
-  final _icons = <IconData>[
-    CupertinoIcons.home,
-    CupertinoIcons.bell,
-    CupertinoIcons.plus,      // centre
-    CupertinoIcons.settings,
-    CupertinoIcons.person,
-  ];
-
-  /*──────── init ───────*/
   @override
   void initState() {
     super.initState();
-    _selected = widget.selectedIndex;                 // 👈 set from param
+    _selected = widget.selectedIndex;
     _ctl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
 
-    // notch begins under current tab
     _notchAnim = Tween<double>(
       begin: _pos(_selected),
       end: _pos(_selected),
     ).animate(_curve(_ctl));
   }
 
-  /*──────── helpers ─────*/
-  // converts tab 0‑4 → notch centre 0.1 .. 0.9
-  double _pos(int i) => (i + 0.5) / _icons.length;
+  double _pos(int i) => (i + 0.5) / 5; // 5 icons
+
   CurvedAnimation _curve(AnimationController c) =>
       CurvedAnimation(parent: c, curve: Curves.easeOutCubic);
 
-  /*──────── on‑tap ─────*/
   void _tap(int i) {
-    if (i == _selected) return;                       // stop re‑routing
+    if (i == _selected) return;
 
-    // animate the notch
     _notchAnim =
         Tween<double>(begin: _notchAnim.value, end: _pos(i)).animate(_curve(_ctl));
     _ctl.forward(from: 0);
     setState(() => _selected = i);
 
-    /*—— route changes ———*/
     switch (i) {
       case 0: Navigator.pushReplacementNamed(context, '/home');           break;
       case 1: Navigator.pushReplacementNamed(context, '/notifications');  break;
@@ -69,10 +52,9 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
     }
   }
 
-  /*──────── build bar ─────*/
   @override
   Widget build(BuildContext context) {
-    const bg  = Color(0xFF1E1E1E);
+    const bg = Color(0xFF1E1E1E);
     const sel = Color(0xFFFF2D55);
 
     return BottomAppBar(
@@ -91,21 +73,68 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
               height: 70,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(_icons.length, (i) {
-                  const offs = Offset(0, -5); // subtle global lift
-                  return Transform.translate(
-                    offset: offs,
+                children: [
+                  Transform.translate(
+                    offset: const Offset(-5, -5),
                     child: IconButton(
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
                       icon: Icon(
-                        _icons[i],
-                        color: i == _selected ? sel : Colors.white70,
+                        CupertinoIcons.home,
+                        color: _selected == 0 ? sel : Colors.white70,
                       ),
-                      onPressed: () => _tap(i),
+                      onPressed: () => _tap(0),
                     ),
-                  );
-                }),
+                  ),
+                  Transform.translate(
+                    offset: const Offset(-2.5, -5),
+                    child: IconButton(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      icon: Icon(
+                        CupertinoIcons.bell,
+                        color: _selected == 1 ? sel : Colors.white70,
+                      ),
+                      onPressed: () => _tap(1),
+                    ),
+                  ),
+                  Transform.translate(
+                    offset: const Offset(0, -5),
+                    child: IconButton(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      icon: Icon(
+                        CupertinoIcons.plus,
+                        color: _selected == 2 ? sel : Colors.white70,
+                      ),
+                      onPressed: () => _tap(2),
+                    ),
+                  ),
+                  Transform.translate(
+                    offset: const Offset(3, -5),
+                    child: IconButton(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      icon: Icon(
+                        CupertinoIcons.settings,
+                        color: _selected == 3 ? sel : Colors.white70,
+                      ),
+                      onPressed: () => _tap(3),
+                    ),
+                  ),
+                  Transform.translate(
+                    offset: const Offset(7, -5),
+                    child: IconButton(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      icon: Icon(
+                        CupertinoIcons.person,
+                        color: _selected == 4 ? sel : Colors.white70,
+                      ),
+                      onPressed: () => _tap(4),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -121,12 +150,11 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
   }
 }
 
-/*──────── painter for bar & moving notch ─────*/
 class _CurvePainter extends CustomPainter {
   const _CurvePainter({required this.notchX, required this.color});
 
-  final double notchX; // 0‑1
-  final Color  color;
+  final double notchX;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size s) {
@@ -137,23 +165,19 @@ class _CurvePainter extends CustomPainter {
     final paint = Paint()..color = color;
     final p = Path()..moveTo(0, 0);
 
-    // left straight
     p.lineTo(cx - half - 12, 0);
-    // curve up
     p.quadraticBezierTo(cx - half, 0, cx - half, notchH / 2);
-    // concave arc
     p.arcToPoint(
       Offset(cx + half, notchH / 2),
       radius: const Radius.circular(22),
       clockwise: false,
     );
-    // curve down
     p.quadraticBezierTo(cx + half, 0, cx + half + 12, 0);
-    p
-      ..lineTo(s.width, 0)
-      ..lineTo(s.width, s.height)
-      ..lineTo(0, s.height)
-      ..close();
+
+    p.lineTo(s.width, 0);
+    p.lineTo(s.width, s.height);
+    p.lineTo(0, s.height);
+    p.close();
 
     canvas.drawPath(p, paint);
   }
