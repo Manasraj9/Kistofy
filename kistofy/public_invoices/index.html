@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,60 +12,77 @@
             padding: 2rem;
             color: #333;
         }
+
         .container {
             max-width: 800px;
             margin: auto;
             background: #fff;
             padding: 2rem;
             border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
-        h1, h2 {
+
+        h1,
+        h2 {
             text-align: center;
             color: #3c3c3c;
         }
+
         .info {
             display: flex;
             justify-content: space-between;
             margin-top: 1rem;
         }
+
         .info .seller {
             text-align: left;
             width: 48%;
             font-size: 14px;
         }
+
         .info .customer {
             text-align: right;
             width: 48%;
             font-size: 14px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
         }
-        th, td {
+
+        th,
+        td {
             border: 1px solid #ddd;
             padding: 10px;
             text-align: center;
         }
+
         th {
             background-color: #f0f0f0;
         }
+
         .summary {
-            text-align: right;
+            text-align: left;
             margin-top: 1rem;
+            width: 30%;
+            margin-left: auto;
+
         }
+
         .summary p {
             margin: 4px 0;
             font-size: 15px;
         }
+
         .footer {
             text-align: center;
             margin-top: 2rem;
             font-size: 12px;
             color: #777;
         }
+
         button {
             display: block;
             margin: 2rem auto 0;
@@ -78,146 +96,155 @@
         }
     </style>
 </head>
-<body>
-<div class="container" id="invoice-container">
-    <h1 id="shop-name">Shop Name</h1>
-       <h2>Invoice</h2>
 
-    <div class="info">
-        <div class="seller" id="seller-details"></div>
-        <div class="customer" id="customer-details"></div>
+<body>
+    <div class="container" id="invoice-container">
+        <h1 id="shop-name">Shop Name</h1>
+        <h2>Invoice</h2>
+
+        <div class="info">
+            <div class="seller" id="seller-details"></div>
+            <div class="customer" id="customer-details"></div>
+        </div>
+
+        <p><strong>Date:</strong> <span id="invoice-date"></span></p>
+        <p><strong>Invoice Number:</strong> <span id="invoice-number"></span></p>
+        <p><strong>Payment Method:</strong> <span id="payment-method"></span></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Discount (%)</th>
+                    <th>CGST</th>
+                    <th>SGST</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody id="product-list"></tbody>
+        </table>
+
+        <div class="summary" id="summary"></div>
+
+        <div class="footer">Powered by Kistofy - Smart Billing</div>
+
+        <button onclick="downloadInvoice()">Download PDF</button>
     </div>
 
- 
+    <script src="env.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    <p><strong>Invoice Number:</strong> <span id="invoice-number"></span></p>
-    <p><strong>Date:</strong> <span id="invoice-date"></span></p>
+        const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.ENV;
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    <table>
-        <thead>
-            <tr>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Discount (%)</th>
-                <th>CGST</th>
-                <th>SGST</th>
-                <th>Subtotal</th>
-            </tr>
-        </thead>
-        <tbody id="product-list"></tbody>
-    </table>
-
-    <div class="summary" id="summary"></div>
-
-    <div class="footer">Powered by Kistofy - Smart Billing</div>
-
-    <button onclick="downloadInvoice()">Download PDF</button>
-</div>
-
-<script src="env.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.ENV;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    window.downloadInvoice = function () {
-        const element = document.getElementById('invoice-container');
-        const opt = {
-            margin: 0.5,
-            filename: `invoice-${new Date().getTime()}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        window.downloadInvoice = function () {
+            const element = document.getElementById('invoice-container');
+            const opt = {
+                margin: 0.5,
+                filename: `invoice-${new Date().getTime()}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save();
         };
-        html2pdf().from(element).set(opt).save();
-    };
 
-    async function loadInvoice() {
-        const params = new URLSearchParams(window.location.search);
-        let publicId = params.get('id');
+        async function loadInvoice() {
+            const params = new URLSearchParams(window.location.search);
+            let publicId = params.get('id');
 
-        if (!publicId) {
-            publicId = window.location.pathname.split('/').pop();
-        }
+            if (!publicId) {
+                publicId = window.location.pathname.split('/').pop();
+            }
 
-        const { data, error } = await supabase.rpc('get_invoice_full', { public_id: publicId });
+            const { data, error } = await supabase.rpc('get_invoice_full', { public_id: publicId });
 
-        if (error) {
-    console.error(error);
-    document.body.innerHTML = '<h2 style="text-align:center;color:red">Error fetching invoice</h2>';
-    return;
-}
+            if (error) {
+                console.error(error);
+                document.body.innerHTML = '<h2 style="text-align:center;color:red">Error fetching invoice</h2>';
+                return;
+            }
 
-if (!data || data.length === 0) {
-    console.warn('Invoice not found or no items in invoice');
-    document.body.innerHTML = '<h2 style="text-align:center;color:red">Invoice not found</h2>';
-    return;
-}
+            if (!data || data.length === 0) {
+                console.warn('Invoice not found or no items in invoice');
+                document.body.innerHTML = '<h2 style="text-align:center;color:red">Invoice not found</h2>';
+                return;
+            }
 
 
-        const first = data[0];
+            const first = data[0];
 
-        document.getElementById('shop-name').textContent = first.shop_name;
+            document.getElementById('shop-name').textContent = first.shop_name;
 
-        document.getElementById('seller-details').innerHTML = `
+            document.getElementById('seller-details').innerHTML = `
             <strong>Seller:</strong><br/>
             ${first.shop_name}<br/>
-            GST: ${first.gst_number}<br/>
-            ${first.seller_address}<br/>
-            Mobile: ${first.seller_mobile}
+            <b>GST:</b> ${first.gst_number}<br/>
+            <b>Address:</b>${first.seller_address}<br/>
+            <b>Mobile:</b> ${first.seller_mobile}
         `;
 
-        document.getElementById('customer-details').innerHTML = `
+            document.getElementById('customer-details').innerHTML = `
             <strong>Customer:</strong><br/>
             ${first.customer_name}<br/>
-            Mobile: ${first.customer_mobile}
+            ${first.customer_mobile}
         `;
 
-        document.getElementById('invoice-number').textContent = first.invoice_number;
-        document.getElementById('invoice-date').textContent = new Date(first.created_at).toLocaleDateString();
+            document.getElementById('invoice-number').textContent = first.invoice_number;
+            document.getElementById('invoice-date').textContent = new Date(first.created_at).toLocaleDateString();
 
-        const tbody = document.getElementById('product-list');
-        let totalSubtotal = 0;
-        let totalCgst = 0;
-        let totalSgst = 0;
+            const tbody = document.getElementById('product-list');
+            let totalSubtotal = 0;
+            let totalCgst = 0;
+            let totalSgst = 0;
 
-        data.forEach(item => {
-            totalSubtotal += parseFloat(item.subtotal);
-            totalCgst += parseFloat(item.cgst);
-            totalSgst += parseFloat(item.sgst);
+            document.getElementById('payment-method').textContent = first.payment_method || 'N/A';
+            const gstSplitRate = (first.gst_percent / 2).toFixed(2);
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.product_name}</td>
-                <td>${item.quantity}</td>
-                <td>₹${item.price.toFixed(2)}</td>
-                <td>${item.discount_percent ? item.discount_percent + '%' : '0%'}</td>
-                <td>₹${item.cgst.toFixed(2)}</td>
-                <td>₹${item.sgst.toFixed(2)}</td>
-                <td>₹${item.subtotal.toFixed(2)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+            data.forEach(item => {
+                const gstSplitRate = (item.gst_percent / 2).toFixed(2);
 
-        const totalGst = totalCgst + totalSgst;
+                totalSubtotal += parseFloat(item.subtotal);
+                totalCgst += parseFloat(item.cgst);
+                totalSgst += parseFloat(item.sgst);
 
-        // Important: If GST is inclusive, finalAmount = totalSubtotal
-        // If GST is exclusive, finalAmount = totalSubtotal + totalGst
-        const finalAmount = first.is_gst_inclusive ? totalSubtotal : totalSubtotal;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+        <td>${item.product_name}</td>
+        <td>${item.quantity}</td>
+        <td>₹${item.price.toFixed(2)}</td>
+        <td>${item.discount_percent ? item.discount_percent + '%' : '0%'}</td>
+        <td>₹${item.cgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
+        <td>₹${item.sgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
+        <td>₹${item.subtotal.toFixed(2)}</td>
+    `;
+                tbody.appendChild(tr);
+            });
 
-        document.getElementById('summary').innerHTML = `
-            <p><strong>Subtotal:</strong> ₹${totalSubtotal.toFixed(2)}</p>
-            <p><strong>CGST:</strong> ₹${totalCgst.toFixed(2)}</p>
-            <p><strong>SGST:</strong> ₹${totalSgst.toFixed(2)}</p>
-            <p><strong>Total GST:</strong> ₹${totalGst.toFixed(2)} (incl in price)</p>
-            <p><strong>Final Total:</strong> ₹${finalAmount.toFixed(2)}</p>
-        `;
-    }
 
-    loadInvoice();
-</script>
+            const totalGst = totalCgst + totalSgst;
+
+            // Important: If GST is inclusive, finalAmount = totalSubtotal
+            // If GST is exclusive, finalAmount = totalSubtotal + totalGst
+            const finalAmount = first.is_gst_inclusive ? totalSubtotal : totalSubtotal;
+
+
+            document.getElementById('summary').innerHTML = `
+    <p><strong>Subtotal:</strong> ₹${totalSubtotal.toFixed(2)}</p>
+    <p><strong>CGST :</strong> ₹${totalCgst.toFixed(2)} </p>
+    <p><strong>SGST :</strong> ₹${totalSgst.toFixed(2)}</p>
+    <p><strong>Total GST:</strong> ₹${totalGst.toFixed(2)} (Incl. in price)</p>
+    <p><strong>Final Total:</strong> ₹${finalAmount.toFixed(2)} (To be paid)</p>
+`;
+
+        }
+
+        loadInvoice();
+    </script>
 </body>
+
 </html>

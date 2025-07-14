@@ -73,7 +73,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (userId == null) return;
 
     final qty = int.tryParse(quantityC.text) ?? 0;
-    final reorder = (qty * 0.1).floor();
 
     final data = {
       'user_id': userId,
