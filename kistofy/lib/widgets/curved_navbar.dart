@@ -45,7 +45,7 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
 
     switch (i) {
       case 0: Navigator.pushReplacementNamed(context, '/home');           break;
-      case 1: Navigator.pushReplacementNamed(context, '/notifications');  break;
+      case 1: Navigator.pushReplacementNamed(context, '/customers');  break;
       case 2: Navigator.pushReplacementNamed(context, '/create-invoice'); break;
       case 3: Navigator.pushReplacementNamed(context, '/products');       break;
       case 4: Navigator.pushReplacementNamed(context, '/seller-profile'); break;
@@ -92,7 +92,7 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
                       icon: Icon(
-                        CupertinoIcons.bell,
+                        CupertinoIcons.person_add_solid,
                         color: _selected == 1 ? sel : Colors.white70,
                       ),
                       onPressed: () => _tap(1),
@@ -116,7 +116,7 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
                       icon: Icon(
-                        CupertinoIcons.settings,
+                        CupertinoIcons.bag_fill,
                         color: _selected == 3 ? sel : Colors.white70,
                       ),
                       onPressed: () => _tap(3),
@@ -128,7 +128,7 @@ class _AnimatedCurvedNavBarState extends State<AnimatedCurvedNavBar>
                       splashColor: Colors.transparent,
                       highlightColor: Colors.transparent,
                       icon: Icon(
-                        CupertinoIcons.person,
+                        CupertinoIcons.profile_circled,
                         color: _selected == 4 ? sel : Colors.white70,
                       ),
                       onPressed: () => _tap(4),

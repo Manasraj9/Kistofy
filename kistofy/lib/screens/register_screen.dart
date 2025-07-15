@@ -37,7 +37,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: password,
       );
       if (res.user != null) {
-        Navigator.pushReplacementNamed(context, '/home');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful. Please log in.')),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
       ScaffoldMessenger.of(context)

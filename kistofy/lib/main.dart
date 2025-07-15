@@ -9,6 +9,8 @@ import 'screens/product_list_screen.dart';
 import 'screens/add_product_screen.dart';
 import 'screens/edit_product_screen.dart';
 import 'screens/create_invoice_screen.dart';
+import 'screens/customermanagementscreen.dart';
+import 'screens/notificationscreen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +36,7 @@ class MyApp extends StatelessWidget {
       title: 'Kistofy',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.indigo),
-      initialRoute: '/register',
+      initialRoute: '/login',
       routes: {
         '/register': (_) => const RegisterScreen(),
         '/login': (_) => const LoginScreen(),
@@ -43,7 +45,9 @@ class MyApp extends StatelessWidget {
         '/products': (_) => const ProductListScreen(),
         '/add-product': (_) => const AddProductScreen(),
         '/edit-product':(_) => const EditProductScreen(),
-        '/create-invoice':(_) => const CreateInvoiceScreen()
+        '/create-invoice':(_) => const CreateInvoiceScreen(),
+        '/customers': (_) => const CustomerManagementScreen(),
+        '/notifications': (_) => const NotificationScreen(),
       },
     );
   }
