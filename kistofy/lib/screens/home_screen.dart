@@ -3,14 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:kistofy/widgets/curved_navbar.dart';
 
+enum SalesViewMode { daily, monthly, yearly }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
-enum SalesViewMode { daily, monthly, yearly }
 
 class _HomeScreenState extends State<HomeScreen> {
   final _user = Supabase.instance.client.auth.currentUser;
@@ -138,14 +138,26 @@ class _HomeScreenState extends State<HomeScreen> {
       totalInvoices = invoices.length;
       totalCustomers = customers.length;
 
-      dailySales = List<FlSpot>.from((salesData['daily'] ?? []).asMap().entries.map((entry) =>
-          FlSpot(entry.key.toDouble(), (entry.value['total'] ?? 0).toDouble())));
+      double todayTotal = (salesData['daily']?[0]?['total'] ?? 0).toDouble();
+      dailySales = [FlSpot(0, todayTotal)];
 
-      monthlySales = List<FlSpot>.from((salesData['monthly'] ?? []).asMap().entries.map((entry) =>
-          FlSpot(entry.key.toDouble(), (entry.value['total'] ?? 0).toDouble())));
+      monthlySales = List<FlSpot>.from((salesData['monthly'] ?? []).map((item) =>
+          FlSpot(item['month'].toDouble(), (item['total'] ?? 0).toDouble())));
 
-      yearlySales = List<FlSpot>.from((salesData['yearly'] ?? []).asMap().entries.map((entry) =>
-          FlSpot(entry.key.toDouble(), (entry.value['total'] ?? 0).toDouble())));
+      yearlySales = List<FlSpot>.from(
+          (salesData['yearly'] ?? []).map((item) {
+            final yearValue = item['year'];
+            if (yearValue == null) {
+              return const FlSpot(0, 0);
+            }
+
+            return FlSpot(
+              yearValue.toDouble(),
+              (item['total'] ?? 0).toDouble(),
+            );
+          })
+      );
+
     });
   }
 
@@ -173,15 +185,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   : const AssetImage('assets/images/user.png') as ImageProvider,
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Good Morning 👋',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                if (_sellerName != null && _sellerName!.isNotEmpty)
-                  Text(_sellerName!,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Good Morning 👋', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                  if (_sellerName != null && _sellerName!.isNotEmpty)
+                    Text(_sellerName!, style: const TextStyle(fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
             ),
           ],
         ),
@@ -202,8 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
-                        color: Colors.red, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                   ),
                 ),
             ],
@@ -221,25 +232,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _dashboardStats(brand),
             const SizedBox(height: 20),
-            Text('Sales Overview',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text('Sales Overview', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _salesGraph(),
+            _salesBarChart(),
             const SizedBox(height: 20),
-            Text('Quick Access',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _quick(Icons.inventory_2_outlined, 'Products', '/products'),
-                _quick(Icons.receipt_long, 'Invoices', '/create-invoice'),
-                _quick(Icons.person_outline, 'Profile', '/seller-profile'),
-              ],
-            ),
           ],
         ),
       ),
@@ -248,50 +244,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _dashboardStats(Color brand) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      _dashboardCard('Products', totalProducts, brand),
-      _dashboardCard('Invoices', totalInvoices, Colors.orange),
-      _dashboardCard('Customers', totalCustomers, Colors.green),
+      Expanded(child: _dashboardCard('Products', totalProducts, brand, Icons.inventory_2_outlined)),
+      Expanded(child: _dashboardCard('Invoices', totalInvoices, Colors.orange, Icons.receipt_long)),
+      Expanded(child: _dashboardCard('Customers', totalCustomers, Colors.green, Icons.people_alt)),
     ],
   );
 
-  Widget _dashboardCard(String title, int value, Color color) => Expanded(
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(value.toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-        ],
-      ),
+  Widget _dashboardCard(String title, int value, Color color, IconData icon) => Container(
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 28),
+        const SizedBox(height: 8),
+        Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+        const SizedBox(height: 6),
+        Text(value.toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+      ],
     ),
   );
 
-  Widget _salesGraph() {
-    List<FlSpot> spots;
-    String label;
+  Widget _salesBarChart() {
+    List<FlSpot> spots = [];
     double total = 0;
 
     switch (_salesViewMode) {
       case SalesViewMode.daily:
         spots = dailySales;
-        label = 'Daily';
         break;
       case SalesViewMode.monthly:
         spots = monthlySales;
-        label = 'Monthly';
         break;
       case SalesViewMode.yearly:
         spots = yearlySales;
-        label = 'Yearly';
         break;
+    }
+
+    if (spots.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text('No sales data available', style: TextStyle(fontSize: 14, color: Colors.grey)),
+        ),
+      );
     }
 
     total = spots.fold(0, (sum, item) => sum + item.y);
@@ -300,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _salesTab('Daily', SalesViewMode.daily),
             _salesTab('Monthly', SalesViewMode.monthly),
@@ -309,21 +311,52 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 250,
-          child: LineChart(
-            LineChartData(
-              gridData: FlGridData(show: true),
+          height: 220,
+          child: BarChart(
+            BarChartData(
+              barGroups: spots.map((e) => BarChartGroupData(
+                x: e.x.toInt(),
+                barRods: [
+                  BarChartRodData(
+                    toY: e.y,
+                    width: 14,
+                    borderRadius: BorderRadius.circular(6),
+                    gradient: LinearGradient(
+                      colors: [Colors.blueAccent, Colors.lightBlueAccent],
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                    ),
+                  ),
+                ],
+              )).toList(),
               titlesData: FlTitlesData(
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    getTitlesWidget: (value, meta) =>
-                        Text(value.toInt().toString(), style: const TextStyle(fontSize: 10)),
+                    reservedSize: 28,
+                    getTitlesWidget: (value, meta) {
+                      switch (_salesViewMode) {
+                        case SalesViewMode.daily:
+                          return Text((value.toInt() + 1).toString(), style: const TextStyle(fontSize: 10));
+                        case SalesViewMode.monthly:
+                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          int idx = value.toInt() - 1; // Convert 1-based month to 0-based index
+                          return idx >= 0 && idx < months.length
+                              ? Text(months[idx], style: const TextStyle(fontSize: 10))
+                              : const Text('');
+
+                        case SalesViewMode.yearly:
+                          return Text('${value.toInt()}', style: const TextStyle(fontSize: 10));
+
+                      }
+                    },
                   ),
                 ),
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
+                    reservedSize: 36,
                     getTitlesWidget: (value, meta) =>
                         Text('₹${value.toInt()}', style: const TextStyle(fontSize: 10)),
                   ),
@@ -331,45 +364,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
-              borderData: FlBorderData(show: true),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots.isNotEmpty ? spots : [const FlSpot(0, 0)],
-                  isCurved: true,
-                  color: Colors.blue,
-                  barWidth: 3,
-                  dotData: FlDotData(show: true),
-                  belowBarData: BarAreaData(show: false),
-                )
-              ],
+              gridData: FlGridData(show: false),
+              borderData: FlBorderData(show: false),
             ),
           ),
         ),
         const SizedBox(height: 10),
-        Text('$label Sales Total: ₹${total.toStringAsFixed(2)}',
+        Text('Total Sales: ₹${total.toStringAsFixed(2)}',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
 
+
+
   Widget _salesTab(String label, SalesViewMode mode) {
-    final isActive = _salesViewMode == mode;
+    final isSelected = _salesViewMode == mode;
     return GestureDetector(
       onTap: () => setState(() => _salesViewMode = mode),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? Colors.blue : Colors.grey[200],
+          color: isSelected ? Colors.blueAccent : Colors.grey[200],
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -386,6 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Icon(i, color: Colors.black87),
         ),
+        const SizedBox(height: 6),
         Text(lbl, style: const TextStyle(fontSize: 12)),
       ],
     ),
