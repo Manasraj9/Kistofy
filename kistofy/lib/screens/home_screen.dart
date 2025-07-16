@@ -236,6 +236,13 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             _salesBarChart(),
             const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('View Your Bills'),
+              onPressed: () {
+                Navigator.pushNamed(context, '/bills');
+              },
+            ),
           ],
         ),
       ),
@@ -269,6 +276,8 @@ class _HomeScreenState extends State<HomeScreen> {
         Text(value.toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       ],
     ),
+
+
   );
 
   Widget _salesBarChart() {

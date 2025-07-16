@@ -11,6 +11,7 @@ import 'screens/edit_product_screen.dart';
 import 'screens/create_invoice_screen.dart';
 import 'screens/customermanagementscreen.dart';
 import 'screens/notificationscreen.dart';
+import 'screens/seller_bills_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,7 @@ class MyApp extends StatelessWidget {
         '/create-invoice':(_) => const CreateInvoiceScreen(),
         '/customers': (_) => const CustomerManagementScreen(),
         '/notifications': (_) => const NotificationScreen(),
+        '/bills':(_) => const BillsScreen(),
       },
     );
   }
