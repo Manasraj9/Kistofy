@@ -128,30 +128,62 @@ class _CustomerManagementScreenState extends State<CustomerManagementScreen> {
           ? const Center(child: CircularProgressIndicator())
           : customers.isEmpty
           ? const Center(child: Text('No customers found.'))
-          : ListView.builder(
+          : ListView.separated(
         itemCount: customers.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        padding: const EdgeInsets.all(12),
         itemBuilder: (_, index) {
           final customer = customers[index];
+          final name = customer['name'] ?? 'No Name';
+          final mobile = customer['mobile'] ?? 'No Mobile';
 
-          return ListTile(
-            title: Text(customer['name']),
-            subtitle: Text(customer['mobile']),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _addOrEditCustomer(customer: customer),
+          return Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 3,
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.blueAccent.shade100,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _deleteCustomer(customer['id']),
+              ),
+              title: Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
                 ),
-              ],
+              ),
+              subtitle: Text(
+                mobile,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.teal),
+                    onPressed: () => _addOrEditCustomer(customer: customer),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                    onPressed: () => _deleteCustomer(customer['id']),
+                  ),
+                ],
+              ),
             ),
           );
         },
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () => _addOrEditCustomer(),
         child: const Icon(Icons.add),

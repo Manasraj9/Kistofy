@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kistofy/widgets/curved_navbar.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   const CreateInvoiceScreen({super.key});
@@ -176,14 +177,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     try {
       final uid = supabase.auth.currentUser!.id;
 
-
       final invoice = await supabase.from('invoices').insert({
         'user_id': uid,
         'customer_id': selectedCustomer!['id'],
         'customer_name': selectedCustomer!['name'],
         'invoice_number': 'INV-${DateTime.now().millisecondsSinceEpoch}',
         'total_amount': subtotal,
-        'payment_method': selectedPaymentMethod, // ADD THIS LINE
+        'payment_method': selectedPaymentMethod,
         'public_view_id': Uuid().v4(),
       }).select().single();
 
@@ -207,10 +207,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invoice generated successfully!')));
+      final publicId = invoice['public_view_id'];
+      final link = 'https://heartfelt-treacle-9c2feb.netlify.app/?id=$publicId';
 
-      // Clear selections after saving
+      // Show QR code dialog
+      _showQrDialog(link);
+
       setState(() {
         _selected.clear();
         selectedCustomer = null;
@@ -218,13 +220,48 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (!mounted) return;
       setState(() => _saving = false);
     }
   }
+  void _showQrDialog(String link) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Invoice QR Code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QrImageView(
+              data: link,
+              version: QrVersions.auto,
+              size: 200.0,
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Show this QR to the customer to view the invoice.',
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 5),
+            SelectableText(
+              link,
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
 
   @override
@@ -339,26 +376,27 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               style: TextStyle(fontWeight: FontWeight.bold)),
           ..._selected.map((i) {
             return ListTile(
-              leading: IconButton(
-                  icon: Icon(Icons.remove_circle_outline),
-                  onPressed: () {
-                    if (i['qty'] > 1) setState(() => i['qty']--);
-                  }),
               title: Text(i['name']),
               subtitle:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('₹${(i['price'] * i['qty']).toStringAsFixed(2)} (incl. GST)'),
-                Row(children: [
-                  Text('Qty: ${i['qty']}'),
+              Row(
+                children: [
+                  Text('Qty: '),
                   IconButton(
-                      icon: Icon(Icons.add_circle_outline),
-                      onPressed: () => _addProduct(i)),
-                  SizedBox(width: 10),
-                  SizedBox(
-                    width: 80,
+                    icon: Icon(Icons.remove_circle_outline),
+                    onPressed: () {
+                      if (i['qty'] > 1) {
+                        setState(() => i['qty']--);
+                      }
+                    },
                   ),
-                ]),
-              ]),
+                  Text('${i['qty']}'),
+                  IconButton(
+                    icon: Icon(Icons.add_circle_outline),
+                    onPressed: () => _addProduct(i),
+                  ),
+                ],
+              ),
+
             );
           }).toList(),
 

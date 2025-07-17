@@ -34,22 +34,22 @@
             margin-top: 1rem;
         }
 
-        .info .seller {
-            text-align: left;
+        .info .seller,
+        .info .customer {
             width: 48%;
             font-size: 14px;
         }
 
         .info .customer {
             text-align: right;
-            width: 48%;
-            font-size: 14px;
+
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
+            overflow-x: auto;
         }
 
         th,
@@ -68,7 +68,6 @@
             margin-top: 1rem;
             width: 30%;
             margin-left: auto;
-
         }
 
         .summary p {
@@ -93,6 +92,75 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+        }
+
+        /* Prevent cut-off in PDF */
+        #invoice-container {
+            width: 100%;
+            max-width: 800px;
+            background: #fff;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow: visible;
+            /* Ensure no content is hidden */
+        }
+
+        .html2pdf__page-break {
+            height: 1px;
+            margin: 0;
+            border: none;
+            page-break-before: always;
+        }
+
+
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            body {
+                padding: 1rem;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+
+            .info {
+                flex-direction: column;
+                align-items: flex-start;
+                /* Align content to left in mobile */
+            }
+
+            .info .seller,
+            .info .customer {
+                text-align: left;
+            }
+
+            .info .customer {
+                margin-top: 30px;
+            }
+
+
+            .summary {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th,
+            td {
+                font-size: 12px;
+                padding: 8px;
+            }
+
+            button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -130,7 +198,10 @@
 
         <div class="footer">Powered by Kistofy - Smart Billing</div>
 
-        <button onclick="downloadInvoice()">Download PDF</button>
+        <div id="download-btn-container">
+            <button onclick="downloadInvoice()">Download PDF</button>
+        </div>
+
     </div>
 
     <script src="env.js"></script>
@@ -142,105 +213,109 @@
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         window.downloadInvoice = function () {
+            const btnContainer = document.getElementById('download-btn-container');
+            btnContainer.style.display = 'none';  // Hide button before PDF
+
             const element = document.getElementById('invoice-container');
             const opt = {
                 margin: 0.5,
                 filename: `invoice-${new Date().getTime()}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    scrollY: 0,
+                    windowWidth: document.body.scrollWidth,
+                    windowHeight: document.body.scrollHeight
+                },
                 jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
-            html2pdf().from(element).set(opt).save();
+
+            html2pdf().from(element).set(opt).save().then(() => {
+                btnContainer.style.display = 'block'; // Show button again after download
+            });
         };
+
+
 
         async function loadInvoice() {
             const params = new URLSearchParams(window.location.search);
-            let publicId = params.get('id');
+            let publicId = params.get('public_id') || params.get('id');
 
-            if (!publicId) {
-                publicId = window.location.pathname.split('/').pop();
+            if (!publicId || publicId.trim() === '') {
+                document.body.innerHTML = '<h2 style="text-align:center;color:red">Invalid or Missing Invoice ID</h2>';
+                return;
             }
 
             const { data, error } = await supabase.rpc('get_invoice_full', { public_id: publicId });
 
             if (error) {
                 console.error(error);
-                document.body.innerHTML = '<h2 style="text-align:center;color:red">Error fetching invoice</h2>';
+                document.body.innerHTML = `<h2 style="text-align:center;color:red">Error fetching invoice: ${error.message}</h2>`;
                 return;
             }
 
             if (!data || data.length === 0) {
-                console.warn('Invoice not found or no items in invoice');
                 document.body.innerHTML = '<h2 style="text-align:center;color:red">Invoice not found</h2>';
                 return;
             }
-
 
             const first = data[0];
 
             document.getElementById('shop-name').textContent = first.shop_name;
 
             document.getElementById('seller-details').innerHTML = `
-            <strong>Seller:</strong><br/>
-            ${first.shop_name}<br/>
-            <b>GST:</b> ${first.gst_number}<br/>
-            <b>Address:</b>${first.seller_address}<br/>
-            <b>Mobile:</b> ${first.seller_mobile}
-        `;
+                <strong>Seller:</strong><br/>
+                ${first.shop_name}<br/>
+                <b>GST:</b> ${first.gst_number}<br/>
+                <b>Address:</b> ${first.seller_address}<br/>
+                <b>Mobile:</b> ${first.seller_mobile}
+            `;
 
             document.getElementById('customer-details').innerHTML = `
-            <strong>Customer:</strong><br/>
-            ${first.customer_name}<br/>
-            ${first.customer_mobile}
-        `;
+                <strong>Customer:</strong><br/>
+                ${first.customer_name}<br/>
+                ${first.customer_mobile}
+            `;
 
             document.getElementById('invoice-number').textContent = first.invoice_number;
             document.getElementById('invoice-date').textContent = new Date(first.created_at).toLocaleDateString();
+            document.getElementById('payment-method').textContent = first.payment_method || 'N/A';
 
             const tbody = document.getElementById('product-list');
             let totalSubtotal = 0;
             let totalCgst = 0;
             let totalSgst = 0;
 
-            document.getElementById('payment-method').textContent = first.payment_method || 'N/A';
-            const gstSplitRate = (first.gst_percent / 2).toFixed(2);
-
             data.forEach(item => {
                 const gstSplitRate = (item.gst_percent / 2).toFixed(2);
-
                 totalSubtotal += parseFloat(item.subtotal);
                 totalCgst += parseFloat(item.cgst);
                 totalSgst += parseFloat(item.sgst);
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-        <td>${item.product_name}</td>
-        <td>${item.quantity}</td>
-        <td>₹${item.price.toFixed(2)}</td>
-        <td>${item.discount_percent ? item.discount_percent + '%' : '0%'}</td>
-        <td>₹${item.cgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
-        <td>₹${item.sgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
-        <td>₹${item.subtotal.toFixed(2)}</td>
-    `;
+                    <td>${item.product_name}</td>
+                    <td>${item.quantity}</td>
+                    <td>₹${item.price.toFixed(2)}</td>
+                    <td>${item.discount_percent ? item.discount_percent + '%' : '0%'}</td>
+                    <td>₹${item.cgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
+                    <td>₹${item.sgst.toFixed(2)} <b>(${gstSplitRate}%)</b></td>
+                    <td>₹${item.subtotal.toFixed(2)}</td>
+                `;
                 tbody.appendChild(tr);
             });
 
-
             const totalGst = totalCgst + totalSgst;
-
-            // Important: If GST is inclusive, finalAmount = totalSubtotal
-            // If GST is exclusive, finalAmount = totalSubtotal + totalGst
             const finalAmount = first.is_gst_inclusive ? totalSubtotal : totalSubtotal;
 
-
             document.getElementById('summary').innerHTML = `
-    <p><strong>Subtotal:</strong> ₹${totalSubtotal.toFixed(2)}</p>
-    <p><strong>CGST :</strong> ₹${totalCgst.toFixed(2)} </p>
-    <p><strong>SGST :</strong> ₹${totalSgst.toFixed(2)}</p>
-    <p><strong>Total GST:</strong> ₹${totalGst.toFixed(2)} (Incl. in price)</p>
-    <p><strong>Final Total:</strong> ₹${finalAmount.toFixed(2)} (To be paid)</p>
-`;
-
+                <p><strong>Subtotal:</strong> ₹${totalSubtotal.toFixed(2)}</p>
+                <p><strong>CGST :</strong> ₹${totalCgst.toFixed(2)} </p>
+                <p><strong>SGST :</strong> ₹${totalSgst.toFixed(2)}</p>
+                <p><strong>Total GST:</strong> ₹${totalGst.toFixed(2)} (Incl. in price)</p>
+                <p><strong>Final Total:</strong> ₹${finalAmount.toFixed(2)} (To be paid)</p>
+            `;
         }
 
         loadInvoice();
